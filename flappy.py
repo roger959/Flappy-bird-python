@@ -1,5 +1,4 @@
 try:
-    from mode_survie import start_survival_mode, load_bird_images
     import pygame, random, time
     from pygame.locals import *
 except ModuleNotFoundError as e:
@@ -91,8 +90,8 @@ class Pipe(pygame.sprite.Sprite):
         
         self.mask = pygame.mask.from_surface(self.image)
 
-    def update(self):
-        self.rect[0] -= GAME_SPEED
+    def update(self, current_game_speed):
+        self.rect[0] -= current_game_speed
 
 class Ground(pygame.sprite.Sprite):
     def __init__(self, xpos):
@@ -106,8 +105,8 @@ class Ground(pygame.sprite.Sprite):
         self.rect[0] = xpos
         self.rect[1] = SCREEN_HEIGHT - GROUND_HEIGHT
         
-    def update(self):
-        self.rect[0] -= GAME_SPEED
+    def update(self, current_game_speed):
+        self.rect[0] -= current_game_speed
 
 def is_off_screen(sprite):
     return sprite.rect[0] < -(sprite.rect[2])
@@ -159,6 +158,12 @@ screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption('Flappy Bird')
 
 def start_game(selected_bird, reverse_mode):
+    global GAME_SPEED
+    
+    # Avant la boucle principale - On garde la vitesse de base
+    base_game_speed = GAME_SPEED
+    current_game_speed = base_game_speed
+    
     # Initialize sprite groups
     bird_group = pygame.sprite.Group()
     bird = Bird()
@@ -236,7 +241,8 @@ def start_game(selected_bird, reverse_mode):
             ground_group.add(new_ground)
 
         bird.begin()
-        ground_group.update()
+        for ground in ground_group:
+            ground.update(current_game_speed)
         bird_group.draw(game_surface)
         ground_group.draw(game_surface)
 
@@ -282,18 +288,27 @@ def start_game(selected_bird, reverse_mode):
             pipe_group.add(pipes[1])
 
         bird_group.update(reverse_mode)
-        ground_group.update()
-        pipe_group.update()
+        
+        # Update avec la vitesse actuelle
+        for ground in ground_group:
+            ground.update(current_game_speed)
+        for pipe in pipe_group:
+            pipe.update(current_game_speed)
 
         bird_group.draw(game_surface)
         pipe_group.draw(game_surface)
         ground_group.draw(game_surface)
 
+        # Dans la boucle principale, après la mise à jour du score :
         for pipe in pipe_group:
             if (pipe.rect[0] + PIPE_WIDTH < bird.rect[0] and 
                 pipe not in passed_pipes and not pipe.inverted):
                 score += 1
                 passed_pipes.append(pipe)
+                # Augmenter la vitesse tous les multiples de 5
+                if score % 5 == 0:
+                    current_game_speed = int(base_game_speed * (1.3 ** (score // 5)))
+                    print(f"Score: {score} - Nouvelle vitesse: {current_game_speed}")
 
         score_text = font_score.render(f"Score : {score}", True, (255, 255, 255))
         game_surface.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, 20))
@@ -306,22 +321,27 @@ def start_game(selected_bird, reverse_mode):
 
         pygame.display.update()
 
+        # Vérifier si l'oiseau sort du cadre en hauteur (haut ou bas selon le mode)
+        bird_out_of_bounds = False
+        if reverse_mode:
+            # En mode inversé, l'oiseau meurt s'il sort par le bas de l'écran inversé (donc le haut réel)
+            bird_out_of_bounds = bird.rect.bottom < 0
+        else:
+            # En mode normal, l'oiseau meurt s'il sort par le haut
+            bird_out_of_bounds = bird.rect.top < 0
+
         if (pygame.sprite.groupcollide(bird_group, ground_group, False, False, pygame.sprite.collide_mask) or
-            pygame.sprite.groupcollide(bird_group, pipe_group, False, False, pygame.sprite.collide_mask)):
+            pygame.sprite.groupcollide(bird_group, pipe_group, False, False, pygame.sprite.collide_mask) or
+            bird_out_of_bounds):
             try:
                 pygame.mixer.music.load(hit)
                 pygame.mixer.music.play()
             except:
                 pass
             time.sleep(1)
+            # Remettre la vitesse à la normale avant de quitter
+            GAME_SPEED = base_game_speed
             return show_game_over(screen, score, font_end, reverse_mode)
-        
-selected_bird = 0
-reverse_mode = False
-bird_images = load_bird_images(BIRDS_BESTIAIRE[selected_bird])
-score = start_survival_mode(bird_images, reverse_mode)
-print("Score Survie:", score)
-
 
 def show_game_over(screen, score, font_end, reverse_mode):
     while True:
