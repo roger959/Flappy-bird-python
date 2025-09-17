@@ -74,8 +74,13 @@ class Bird(pygame.sprite.Sprite):
 class Pipe(pygame.sprite.Sprite):
     def __init__(self, inverted, xpos, ysize):
         pygame.sprite.Sprite.__init__(self)
-        
-        self.image = pygame.image.load('assets/sprites/pipe-green.png').convert_alpha()
+
+        # Choisir un sprite aléatoire pour le tuyau
+        pipe_image_path = random.choice([
+            'assets/sprites/pipe-green.png',
+            'assets/sprites/pipe-red.png'
+        ])
+        self.image = pygame.image.load(pipe_image_path).convert_alpha()
         self.image = pygame.transform.scale(self.image, (PIPE_WIDTH, PIPE_HEIGHT))
         
         self.rect = self.image.get_rect()
@@ -232,8 +237,6 @@ def start_game(selected_bird, reverse_mode):
         bg = day_background
         game_surface.blit(bg, (0, 0))
         game_surface.blit(BEGIN_IMAGE, (120, 150))
-        score_text = font_score.render(f"Score : {score}", True, (255, 255, 255))
-        blit_text(game_surface, score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, 20), reverse_mode)
 
         if is_off_screen(ground_group.sprites()[0]):
             ground_group.remove(ground_group.sprites()[0])
@@ -249,6 +252,8 @@ def start_game(selected_bird, reverse_mode):
         if reverse_mode:
             flipped = pygame.transform.flip(game_surface, False, True)
             screen.blit(flipped, (0, 0))
+            score_text = font_score.render(f"Score : {score}", True, (255, 255, 255))
+            screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, 20))
         else:
             screen.blit(game_surface, (0, 0))
 
@@ -289,7 +294,6 @@ def start_game(selected_bird, reverse_mode):
 
         bird_group.update(reverse_mode)
         
-        # Update avec la vitesse actuelle
         for ground in ground_group:
             ground.update(current_game_speed)
         for pipe in pipe_group:
@@ -299,35 +303,33 @@ def start_game(selected_bird, reverse_mode):
         pipe_group.draw(game_surface)
         ground_group.draw(game_surface)
 
-        # Dans la boucle principale, après la mise à jour du score :
+        # Mettre à jour le score
         for pipe in pipe_group:
             if (pipe.rect[0] + PIPE_WIDTH < bird.rect[0] and 
                 pipe not in passed_pipes and not pipe.inverted):
                 score += 1
                 passed_pipes.append(pipe)
-                # Augmenter la vitesse tous les multiples de 5
-                if score % 5 == 0:
-                    current_game_speed = int(base_game_speed * (1.3 ** (score // 5)))
+                if score % 8 == 0:
+                    current_game_speed = int(base_game_speed * (1.25 ** (score // 8)))
                     print(f"Score: {score} - Nouvelle vitesse: {current_game_speed}")
 
-        score_text = font_score.render(f"Score : {score}", True, (255, 255, 255))
-        game_surface.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, 20))
-
         if reverse_mode:
-            flipped = pygame.transform.flip(game_surface, False, True)
-            screen.blit(flipped, (0, 0))
+            flipped_surface = pygame.transform.flip(game_surface, False, True)
+            screen.blit(flipped_surface, (0, 0))
+            score_text = font_score.render(f"Score : {score}", True, (255, 255, 255))
+            screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, 20))
         else:
             screen.blit(game_surface, (0, 0))
+            score_text = font_score.render(f"Score : {score}", True, (255, 255, 255))
+            screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, 20))
 
         pygame.display.update()
 
-        # Vérifier si l'oiseau sort du cadre en hauteur (haut ou bas selon le mode)
+        # Vérifier si l'oiseau sort du cadre
         bird_out_of_bounds = False
         if reverse_mode:
-            # En mode inversé, l'oiseau meurt s'il sort par le bas de l'écran inversé (donc le haut réel)
             bird_out_of_bounds = bird.rect.bottom < 0
         else:
-            # En mode normal, l'oiseau meurt s'il sort par le haut
             bird_out_of_bounds = bird.rect.top < 0
 
         if (pygame.sprite.groupcollide(bird_group, ground_group, False, False, pygame.sprite.collide_mask) or
@@ -339,20 +341,30 @@ def start_game(selected_bird, reverse_mode):
             except:
                 pass
             time.sleep(1)
-            # Remettre la vitesse à la normale avant de quitter
             GAME_SPEED = base_game_speed
             return show_game_over(screen, score, font_end, reverse_mode)
 
 def show_game_over(screen, score, font_end, reverse_mode):
+    # Charger l'image de Game Over
+    try:
+        gameover_img = pygame.image.load('assets/sprites/gameover.png').convert_alpha()
+        gameover_img = pygame.transform.scale(gameover_img, (200, 50))
+    except:
+        gameover_img = None
+
     while True:
         screen.fill((0, 0, 0))
-        over_text = font_end.render("Game Over", True, (255, 0, 0))
+
+        if gameover_img:
+            screen.blit(gameover_img, (SCREEN_WIDTH // 2 - gameover_img.get_width() // 2, 150))
+        else:
+            over_text = font_end.render("Game Over", True, (255, 0, 0))
+            blit_text(screen, over_text, (SCREEN_WIDTH // 2 - over_text.get_width() // 2, 180), False)
+
         score_text = font_end.render(f"Votre score : {score}", True, (255, 255, 255))
-        retry_text = font_end.render("Appuyez sur R pour recommencer", True, (255, 255, 0))
+        retry_text = font_end.render("r R pour recommencer", True, (255, 255, 0))
         quit_text = font_end.render("Ou ECHAP pour quitter", True, (200, 200, 200))
         
-        # Texte toujours droit, même en mode inversé
-        blit_text(screen, over_text, (SCREEN_WIDTH // 2 - over_text.get_width() // 2, 180), False)
         blit_text(screen, score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, 240), False)
         blit_text(screen, retry_text, (SCREEN_WIDTH // 2 - retry_text.get_width() // 2, 300), False)
         blit_text(screen, quit_text, (SCREEN_WIDTH // 2 - quit_text.get_width() // 2, 340), False)
@@ -370,7 +382,6 @@ def show_game_over(screen, score, font_end, reverse_mode):
                     pygame.quit()
                     return False
 
-# Main game loop
 def main():
     while True:
         selected_bird = 0
@@ -382,8 +393,7 @@ def main():
         while selecting:
             screen.fill((0, 0, 0))
             
-            # Texte menu toujours droit
-            title = font_title.render("Choisissez votre couleur d'oiseau", True, (255, 255, 0))
+            title = font_title.render(" couleur d'oiseau", True, (255, 255, 0))
             blit_text(screen, title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 60), False)
             
             name = BIRDS_BESTIAIRE[selected_bird]["name"]
@@ -412,7 +422,7 @@ def main():
                 no_img_text = font.render("Image non trouvée", True, (255, 100, 100))
                 blit_text(screen, no_img_text, (SCREEN_WIDTH // 2 - no_img_text.get_width() // 2, 220), False)
             
-            instr = font.render("← → changer, V : inversé, Entrée/Espace : valider", True, (200, 200, 200))
+            instr = font.render(" V : mode inverse", True, (200, 200, 200))
             blit_text(screen, instr, (SCREEN_WIDTH // 2 - instr.get_width() // 2, 350), False)
             
             if reverse_mode:
