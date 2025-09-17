@@ -1,4 +1,5 @@
 try:
+    from mode_survie import start_survival_mode, load_bird_images
     import pygame, random, time
     from pygame.locals import *
 except ModuleNotFoundError as e:
@@ -25,7 +26,7 @@ hit = 'assets/audio/hit.wav'
 
 pygame.mixer.init()
 
-# Fonction utilitaire pour afficher du texte (menus uniquement)
+# Fonctions utilitaires
 def blit_text(surface, text_surface, pos, reverse_mode=False):
     """Dessine le texte dans le bon sens, même si reverse_mode est activé (menus uniquement)."""
     if reverse_mode:
@@ -34,6 +35,12 @@ def blit_text(surface, text_surface, pos, reverse_mode=False):
         surface.blit(flipped_text, (pos[0], new_y))
     else:
         surface.blit(text_surface, pos)
+
+def get_gravity(reverse_mode):
+    return -GRAVITY if reverse_mode else GRAVITY
+
+def get_bump_speed(reverse_mode):
+    return SPEED if reverse_mode else -SPEED
 
 class Bird(pygame.sprite.Sprite):
     def __init__(self):
@@ -52,14 +59,14 @@ class Bird(pygame.sprite.Sprite):
         self.rect[0] = SCREEN_WIDTH / 6
         self.rect[1] = SCREEN_HEIGHT / 2
 
-    def update(self):
+    def update(self, reverse_mode):
         self.current_image = (self.current_image + 1) % 3
         self.image = self.images[self.current_image]
-        self.speed += GRAVITY
+        self.speed += get_gravity(reverse_mode)
         self.rect[1] += self.speed
 
-    def bump(self):
-        self.speed = -SPEED
+    def bump(self, reverse_mode):
+        self.speed = get_bump_speed(reverse_mode)
 
     def begin(self):
         self.current_image = (self.current_image + 1) % 3
@@ -105,10 +112,14 @@ class Ground(pygame.sprite.Sprite):
 def is_off_screen(sprite):
     return sprite.rect[0] < -(sprite.rect[2])
 
-def get_random_pipes(xpos):
+def get_random_pipes(xpos, reverse_mode):
     size = random.randint(100, 300)
-    pipe = Pipe(False, xpos, size)
-    pipe_inverted = Pipe(True, xpos, SCREEN_HEIGHT - size - PIPE_GAP)
+    if reverse_mode:
+        pipe = Pipe(True, xpos, size)
+        pipe_inverted = Pipe(False, xpos, SCREEN_HEIGHT - size - PIPE_GAP)
+    else:
+        pipe = Pipe(False, xpos, size)
+        pipe_inverted = Pipe(True, xpos, SCREEN_HEIGHT - size - PIPE_GAP)
     return pipe, pipe_inverted
 
 # Character roster
@@ -165,7 +176,7 @@ def start_game(selected_bird, reverse_mode):
     # Initialize pipes
     pipe_group = pygame.sprite.Group()
     for i in range(2):
-        pipes = get_random_pipes(SCREEN_WIDTH * i + 800)
+        pipes = get_random_pipes(SCREEN_WIDTH * i + 800, reverse_mode)
         pipe_group.add(pipes[0])
         pipe_group.add(pipes[1])
 
@@ -204,7 +215,7 @@ def start_game(selected_bird, reverse_mode):
                 pygame.quit()
                 return
             if event.type == KEYDOWN and event.key in (K_SPACE, K_UP):
-                bird.bump()
+                bird.bump(reverse_mode)
                 try:
                     pygame.mixer.music.load(wing)
                     pygame.mixer.music.play()
@@ -248,7 +259,7 @@ def start_game(selected_bird, reverse_mode):
                 pygame.quit()
                 return
             if event.type == KEYDOWN and event.key in (K_SPACE, K_UP):
-                bird.bump()
+                bird.bump(reverse_mode)
                 try:
                     pygame.mixer.music.load(wing)
                     pygame.mixer.music.play()
@@ -266,11 +277,11 @@ def start_game(selected_bird, reverse_mode):
         if is_off_screen(pipe_group.sprites()[0]):
             pipe_group.remove(pipe_group.sprites()[0])
             pipe_group.remove(pipe_group.sprites()[0])
-            pipes = get_random_pipes(SCREEN_WIDTH * 2)
+            pipes = get_random_pipes(SCREEN_WIDTH * 2, reverse_mode)
             pipe_group.add(pipes[0])
             pipe_group.add(pipes[1])
 
-        bird_group.update()
+        bird_group.update(reverse_mode)
         ground_group.update()
         pipe_group.update()
 
@@ -284,7 +295,6 @@ def start_game(selected_bird, reverse_mode):
                 score += 1
                 passed_pipes.append(pipe)
 
-        # Score affiché normalement pendant le jeu
         score_text = font_score.render(f"Score : {score}", True, (255, 255, 255))
         game_surface.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, 20))
 
@@ -305,6 +315,13 @@ def start_game(selected_bird, reverse_mode):
                 pass
             time.sleep(1)
             return show_game_over(screen, score, font_end, reverse_mode)
+        
+selected_bird = 0
+reverse_mode = False
+bird_images = load_bird_images(BIRDS_BESTIAIRE[selected_bird])
+score = start_survival_mode(bird_images, reverse_mode)
+print("Score Survie:", score)
+
 
 def show_game_over(screen, score, font_end, reverse_mode):
     while True:
@@ -314,11 +331,11 @@ def show_game_over(screen, score, font_end, reverse_mode):
         retry_text = font_end.render("Appuyez sur R pour recommencer", True, (255, 255, 0))
         quit_text = font_end.render("Ou ECHAP pour quitter", True, (200, 200, 200))
         
-        # Ici les textes respectent le mode inversé
-        blit_text(screen, over_text, (SCREEN_WIDTH // 2 - over_text.get_width() // 2, 180), reverse_mode)
-        blit_text(screen, score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, 240), reverse_mode)
-        blit_text(screen, retry_text, (SCREEN_WIDTH // 2 - retry_text.get_width() // 2, 300), reverse_mode)
-        blit_text(screen, quit_text, (SCREEN_WIDTH // 2 - quit_text.get_width() // 2, 340), reverse_mode)
+        # Texte toujours droit, même en mode inversé
+        blit_text(screen, over_text, (SCREEN_WIDTH // 2 - over_text.get_width() // 2, 180), False)
+        blit_text(screen, score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, 240), False)
+        blit_text(screen, retry_text, (SCREEN_WIDTH // 2 - retry_text.get_width() // 2, 300), False)
+        blit_text(screen, quit_text, (SCREEN_WIDTH // 2 - quit_text.get_width() // 2, 340), False)
         
         pygame.display.update()
         
@@ -345,12 +362,13 @@ def main():
         while selecting:
             screen.fill((0, 0, 0))
             
+            # Texte menu toujours droit
             title = font_title.render("Choisissez votre couleur d'oiseau", True, (255, 255, 0))
-            blit_text(screen, title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 60), reverse_mode)
+            blit_text(screen, title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 60), False)
             
             name = BIRDS_BESTIAIRE[selected_bird]["name"]
             text = font.render(f"Oiseau : {name}", True, (255, 255, 255))
-            blit_text(screen, text, (SCREEN_WIDTH // 2 - text.get_width() // 2, 130), reverse_mode)
+            blit_text(screen, text, (SCREEN_WIDTH // 2 - text.get_width() // 2, 130), False)
             
             try:
                 img = pygame.image.load(BIRDS_BESTIAIRE[selected_bird]["sprites"][1]).convert_alpha()
@@ -372,14 +390,14 @@ def main():
                 ])
             except:
                 no_img_text = font.render("Image non trouvée", True, (255, 100, 100))
-                blit_text(screen, no_img_text, (SCREEN_WIDTH // 2 - no_img_text.get_width() // 2, 220), reverse_mode)
+                blit_text(screen, no_img_text, (SCREEN_WIDTH // 2 - no_img_text.get_width() // 2, 220), False)
             
             instr = font.render("← → changer, V : inversé, Entrée/Espace : valider", True, (200, 200, 200))
-            blit_text(screen, instr, (SCREEN_WIDTH // 2 - instr.get_width() // 2, 350), reverse_mode)
+            blit_text(screen, instr, (SCREEN_WIDTH // 2 - instr.get_width() // 2, 350), False)
             
             if reverse_mode:
                 revtxt = font.render("MODE INVERSÉ ACTIVÉ", True, (255, 100, 100))
-                blit_text(screen, revtxt, (SCREEN_WIDTH // 2 - revtxt.get_width() // 2, 400), reverse_mode)
+                blit_text(screen, revtxt, (SCREEN_WIDTH // 2 - revtxt.get_width() // 2, 400), False)
             
             pygame.display.update()
             
